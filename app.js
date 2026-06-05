@@ -17,6 +17,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const lightboxPrev = document.getElementById('lightbox-prev');
   const lightboxNext = document.getElementById('lightbox-next');
   
+  // Lightbox scroll container and caption elements
+  const lightboxScrollContainer = lightbox ? lightbox.querySelector('.lightbox-scroll-container') : null;
+  const lightboxScrollArrow = document.getElementById('lightbox-scroll-arrow');
+  const lightboxCaption = document.getElementById('lightbox-caption');
+  
   // Lightbox EXIF elements
   const metaCategory = document.getElementById('meta-category');
   const metaTitle = document.getElementById('meta-title');
@@ -125,6 +130,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const imgEl = currentItem.querySelector('img');
     if (!imgEl) return;
     
+    // Reset scroll position to top when updating content
+    if (lightboxScrollContainer) {
+      lightboxScrollContainer.scrollTop = 0;
+    }
+    
     // Safety check & assign properties (no innerHTML to avoid XSS)
     // Use data-original for high quality image, fall back to thumbnail data-src or imgEl.src
     lightboxImg.src = currentItem.getAttribute('data-original') || imgEl.getAttribute('data-src') || imgEl.src;
@@ -137,6 +147,20 @@ document.addEventListener('DOMContentLoaded', () => {
     metaCamera.textContent = currentItem.getAttribute('data-camera') || 'N/A';
     metaLens.textContent = currentItem.getAttribute('data-lens') || 'N/A';
     metaExif.textContent = currentItem.getAttribute('data-exif') || 'N/A';
+    
+    // Populate caption and handle scroll arrow visibility
+    const caption = currentItem.getAttribute('data-caption') || '';
+    if (lightboxCaption) {
+      lightboxCaption.textContent = caption;
+    }
+    
+    if (lightboxScrollArrow) {
+      if (caption.trim()) {
+        lightboxScrollArrow.classList.add('visible');
+      } else {
+        lightboxScrollArrow.classList.remove('visible');
+      }
+    }
   };
 
   const openLightbox = (index) => {
@@ -232,10 +256,25 @@ document.addEventListener('DOMContentLoaded', () => {
   // Click on background overlay closes lightbox
   lightbox.addEventListener('click', (e) => {
     // If clicked outside the image and navigation buttons, close it
-    if (e.target === lightbox || e.target.classList.contains('lightbox-content')) {
+    const isOverlayClick = e.target === lightbox || 
+                           e.target.classList.contains('lightbox-scroll-container') || 
+                           e.target.classList.contains('lightbox-first-fold') || 
+                           e.target.classList.contains('lightbox-second-fold') ||
+                           e.target.classList.contains('lightbox-details-container');
+    if (isOverlayClick) {
       closeLightbox();
     }
   });
+
+  // Smooth scroll down to details when clicking the scroll arrow
+  if (lightboxScrollArrow && lightboxScrollContainer) {
+    lightboxScrollArrow.addEventListener('click', () => {
+      lightboxScrollContainer.scrollTo({
+        top: window.innerHeight,
+        behavior: 'smooth'
+      });
+    });
+  }
 
   // Keyboard navigation
   document.addEventListener('keydown', (e) => {

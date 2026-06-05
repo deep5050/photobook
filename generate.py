@@ -231,13 +231,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     </div>
   </main>
 
-    <!-- Footer Section -->
-    <footer id="main-footer">
-      <div class="footer-container">
-        <p class="copyright">&copy; 2026 PHOTOBOOK. All rights reserved.</p>
-        <p class="footer-tagline">Capturing raw moments in native proportions.</p>
-      </div>
-    </footer>
+  <!-- Footer Section -->
+  <footer id="main-footer">
+    <div class="footer-container">
+      <p class="copyright">&copy; 2026 PHOTOBOOK. All rights reserved.</p>
+      <p class="footer-tagline">Capturing raw moments in native proportions.</p>
+    </div>
+  </footer>
 
   <!-- Lightbox Modal -->
   <div id="lightbox" class="lightbox-modal" role="dialog" aria-hidden="true" aria-label="Image Lightbox Viewer">
@@ -254,31 +254,51 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       </svg>
     </button>
 
-    <div class="lightbox-content">
-      <div class="lightbox-img-wrapper">
-        <img id="lightbox-img" src="" alt="">
+    <div class="lightbox-scroll-container">
+      <!-- First Fold (Full Viewport Image) -->
+      <div class="lightbox-first-fold">
+        <div class="lightbox-img-wrapper">
+          <img id="lightbox-img" src="" alt="">
+        </div>
+        
+        <!-- Subtle pulsing scroll indicator -->
+        <div id="lightbox-scroll-arrow" class="lightbox-scroll-arrow" aria-label="Scroll down for details">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </div>
       </div>
       
-      <!-- Meta Information overlay panel -->
-      <div id="lightbox-meta" class="lightbox-meta-panel glass-effect">
-        <div class="meta-main-info">
-          <span id="meta-category" class="meta-tag"></span>
-          <h2 id="meta-title" class="meta-photo-title"></h2>
-          <p id="meta-location" class="meta-photo-loc"></p>
-        </div>
-        <hr class="meta-separator">
-        <div class="meta-tech-details">
-          <div class="tech-item">
-            <span class="tech-label">CAMERA</span>
-            <span id="meta-camera" class="tech-val"></span>
+      <!-- Second Fold (Caption & Metadata) -->
+      <div class="lightbox-second-fold">
+        <div class="lightbox-details-container">
+          <div class="lightbox-caption-section">
+            <span class="details-label">CAPTION</span>
+            <p id="lightbox-caption" class="lightbox-caption-text"></p>
           </div>
-          <div class="tech-item">
-            <span class="tech-label">LENS</span>
-            <span id="meta-lens" class="tech-val"></span>
-          </div>
-          <div class="tech-item">
-            <span class="tech-label">EXIF</span>
-            <span id="meta-exif" class="tech-val"></span>
+          
+          <!-- Meta Information overlay panel -->
+          <div id="lightbox-meta" class="lightbox-meta-panel glass-effect">
+            <div class="meta-main-info">
+              <span id="meta-category" class="meta-tag"></span>
+              <h2 id="meta-title" class="meta-photo-title"></h2>
+              <p id="meta-location" class="meta-photo-loc"></p>
+            </div>
+            <hr class="meta-separator">
+            <div class="meta-tech-details">
+              <div class="tech-item">
+                <span class="tech-label">CAMERA</span>
+                <span id="meta-camera" class="tech-val"></span>
+              </div>
+              <div class="tech-item">
+                <span class="tech-label">LENS</span>
+                <span id="meta-lens" class="tech-val"></span>
+              </div>
+              <div class="tech-item">
+                <span class="tech-label">EXIF</span>
+                <span id="meta-exif" class="tech-val"></span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -308,6 +328,7 @@ def generate_html_items(image_list):
         safe_category = html.escape(item["category"])
         safe_original = html.escape(item["original_path"])
         safe_thumb = html.escape(item["thumb_path"])
+        safe_caption = html.escape(item.get("caption", ""))
         
         cat_display = safe_category.capitalize()
         
@@ -329,7 +350,8 @@ def generate_html_items(image_list):
                  data-camera="{safe_camera}"
                  data-lens="{safe_lens}"
                  data-exif="{safe_exif}"
-                 data-original="{safe_original}">
+                 data-original="{safe_original}"
+                 data-caption="{safe_caption}">
           <div class="image-container">
             {pinned_badge}
             <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3C/svg%3E" data-src="{safe_thumb}" class="lazy-img" alt="{safe_title} photography by PHOTOBOOK">
@@ -351,21 +373,40 @@ def generate_html_items(image_list):
     return "\n\n".join(blocks)
 
 def main():
-    print("Scanning images folder...")
-    image_dir = "images"
-    if not os.path.exists(image_dir):
-        print(f"Error: {image_dir} directory not found.")
+    import json
+    captions = {}
+    if os.path.exists("captions.json"):
+        try:
+            with open("captions.json", "r", encoding="utf-8") as f:
+                captions = json.load(f)
+        except Exception as e:
+            print(f"⚠ Failed to load captions.json: {e}", file=sys.stderr)
+
+    raw_dir = "RAW_IMAGES"
+    if not os.path.exists(raw_dir):
+        # Fallback in case of case variation
+        for name in ["raw_images", "RAW_images", "Raw_Images"]:
+            if os.path.exists(name):
+                raw_dir = name
+                break
+    if not os.path.exists(raw_dir):
+        print(f"Error: RAW_IMAGES directory not found.")
         sys.exit(1)
         
+    image_dir = "images"
+    os.makedirs(image_dir, exist_ok=True)
+    
     thumb_dir = os.path.join(image_dir, "thumbnails")
     os.makedirs(thumb_dir, exist_ok=True)
+    
+    print(f"Scanning original images from: {raw_dir}...")
     
     # Supported image extensions
     extensions = ("*.jpg", "*.jpeg", "*.png", "*.webp")
     filepaths = []
     for ext in extensions:
-        filepaths.extend(glob.glob(os.path.join(image_dir, ext)))
-        filepaths.extend(glob.glob(os.path.join(image_dir, ext.upper())))
+        filepaths.extend(glob.glob(os.path.join(raw_dir, ext)))
+        filepaths.extend(glob.glob(os.path.join(raw_dir, ext.upper())))
         
     filepaths = list(set(filepaths))
     
@@ -373,18 +414,38 @@ def main():
     for fp in filepaths:
         filename = os.path.basename(fp)
         
+        # Path to compressed original image
+        compressed_path = os.path.join(image_dir, filename)
+        
+        # Compress original image if needed
+        try:
+            if not os.path.exists(compressed_path) or os.path.getmtime(fp) > os.path.getmtime(compressed_path):
+                img = Image.open(fp)
+                # Apply EXIF rotation to correctly orient portrait images
+                img = ImageOps.exif_transpose(img)
+                # For JPG optimization, convert RGBA/P formats to standard RGB
+                if img.mode in ("RGBA", "P") and filename.lower().endswith((".jpg", ".jpeg")):
+                    img = img.convert("RGB")
+                # Save compressed original image at 70% quality
+                img.save(compressed_path, quality=70, optimize=True)
+                print(f"✓ Generated compressed original image for: {filename}")
+        except Exception as e:
+            print(f"⚠ Failed to compress original image {filename}: {e}", file=sys.stderr)
+            
         # Build thumbnail
         thumb_path = os.path.join(thumb_dir, filename)
         try:
-            if not os.path.exists(thumb_path) or os.path.getmtime(fp) > os.path.getmtime(thumb_path):
-                img = Image.open(fp)
-                # Apply EXIF rotation to correctly orient portrait images
+            # Use the compressed image to generate thumbnail if it exists, otherwise fallback to raw
+            source_for_thumb = compressed_path if os.path.exists(compressed_path) else fp
+            if not os.path.exists(thumb_path) or os.path.getmtime(source_for_thumb) > os.path.getmtime(thumb_path):
+                img = Image.open(source_for_thumb)
+                # Apply EXIF rotation (already done for compressed, but safe to repeat or do if fallback)
                 img = ImageOps.exif_transpose(img)
                 img.thumbnail((800, 800))
                 # For JPG optimization, convert RGBA/P formats to standard RGB
                 if img.mode in ("RGBA", "P") and filename.lower().endswith((".jpg", ".jpeg")):
                     img = img.convert("RGB")
-                img.save(thumb_path, quality=75, optimize=True)
+                img.save(thumb_path, quality=70, optimize=True)
                 print(f"✓ Generated compressed thumbnail for: {filename}")
         except Exception as e:
             print(f"⚠ Failed to generate thumbnail for {filename}: {e}", file=sys.stderr)
@@ -423,7 +484,8 @@ def main():
             "exif": exif_str,
             "category": category,
             "mtime": mtime,
-            "is_pinned": is_pinned
+            "is_pinned": is_pinned,
+            "caption": captions.get(filename, "")
         })
         
     # Sort files: pinned files go to the top, then sorted by mtime descending
