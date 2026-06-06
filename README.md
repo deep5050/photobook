@@ -4,6 +4,9 @@ Photobook is a premium, minimalist photography portfolio builder designed to sho
 
 Since it generates a completely static site (`index.html`), anyone can fork this repository, drop in their photos, and instantly deploy a gorgeous portfolio site to GitHub Pages, Netlify, or Vercel.
 
+<img width="1868" height="914" alt="image" src="https://github.com/user-attachments/assets/f1deac6e-5e31-48f7-86a5-263b41f9fcaf" />
+<img width="1881" height="896" alt="image" src="https://github.com/user-attachments/assets/59c8eb3e-3cee-406d-af69-7baf5543c6a2" />
+
 ---
 
 ## ✨ Core Features
