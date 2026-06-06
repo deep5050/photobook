@@ -271,33 +271,39 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       
       <!-- Second Fold (Caption & Metadata) -->
       <div class="lightbox-second-fold">
-        <div class="lightbox-details-container">
-          <div class="lightbox-caption-section">
-            <span class="details-label">CAPTION</span>
-            <p id="lightbox-caption" class="lightbox-caption-text"></p>
+        <div class="lightbox-details-layout">
+          <h2 id="lightbox-caption" class="lightbox-caption-title"></h2>
+          <p id="lightbox-details" class="lightbox-details-text"></p>
+          
+          <!-- Histogram -->
+          <div id="lightbox-histogram-section" class="lightbox-histogram-section">
+            <span class="details-label">COLOR PROFILE</span>
+            <div class="histogram-canvas-wrapper">
+              <canvas id="lightbox-histogram-canvas" width="480" height="100"></canvas>
+            </div>
           </div>
           
-          <!-- Meta Information overlay panel -->
-          <div id="lightbox-meta" class="lightbox-meta-panel glass-effect">
-            <div class="meta-main-info">
-              <span id="meta-category" class="meta-tag"></span>
-              <h2 id="meta-title" class="meta-photo-title"></h2>
-              <p id="meta-location" class="meta-photo-loc"></p>
+          <!-- Horizontal EXIF & Info Ribbon -->
+          <div class="lightbox-exif-ribbon">
+            <div class="ribbon-item">
+              <span class="ribbon-label">CAMERA</span>
+              <span id="meta-camera" class="ribbon-val"></span>
             </div>
-            <hr class="meta-separator">
-            <div class="meta-tech-details">
-              <div class="tech-item">
-                <span class="tech-label">CAMERA</span>
-                <span id="meta-camera" class="tech-val"></span>
-              </div>
-              <div class="tech-item">
-                <span class="tech-label">LENS</span>
-                <span id="meta-lens" class="tech-val"></span>
-              </div>
-              <div class="tech-item">
-                <span class="tech-label">EXIF</span>
-                <span id="meta-exif" class="tech-val"></span>
-              </div>
+            <div class="ribbon-item">
+              <span class="ribbon-label">LENS</span>
+              <span id="meta-lens" class="ribbon-val"></span>
+            </div>
+            <div class="ribbon-item">
+              <span class="ribbon-label">EXIF DATA</span>
+              <span id="meta-exif" class="ribbon-val"></span>
+            </div>
+            <div class="ribbon-item">
+              <span class="ribbon-label">LOCATION</span>
+              <span id="meta-location" class="ribbon-val"></span>
+            </div>
+            <div class="ribbon-item">
+              <span class="ribbon-label">CATEGORIES</span>
+              <span id="meta-category" class="ribbon-val"></span>
             </div>
           </div>
         </div>
@@ -329,8 +335,17 @@ def generate_html_items(image_list):
         safe_original = html.escape(item["original_path"])
         safe_thumb = html.escape(item["thumb_path"])
         safe_caption = html.escape(item.get("caption", ""))
+        safe_details = html.escape(item.get("details", ""))
         
-        cat_display = safe_category.capitalize()
+        # Categories / Tags parsing
+        tags_list = item.get("tags", [])
+        if not tags_list:
+            tags_list = [item["category"]]
+        comma_separated_tags = html.escape(",".join(tags_list))
+        cat_display = " / ".join(t.capitalize() for t in tags_list)
+        
+        # Override photogrid title if caption is not empty
+        display_title = safe_caption if safe_caption else safe_title
         
         # Render dynamic pinned badge if the photo is pinned
         pinned_badge = ""
@@ -344,22 +359,21 @@ def generate_html_items(image_list):
             </div>"""
         
         block = f"""        <!-- Photo Item: {safe_title} -->
-        <article class="gallery-item" data-category="{safe_category}" id="item-{i}"
+        <article class="gallery-item" data-category="{comma_separated_tags}" id="item-{i}"
                  data-title="{safe_title}"
                  data-location="{safe_location}"
                  data-camera="{safe_camera}"
                  data-lens="{safe_lens}"
                  data-exif="{safe_exif}"
                  data-original="{safe_original}"
-                 data-caption="{safe_caption}">
+                 data-caption="{safe_caption}"
+                 data-details="{safe_details}">
           <div class="image-container">
             {pinned_badge}
             <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3C/svg%3E" data-src="{safe_thumb}" class="lazy-img" alt="{safe_title} photography by PHOTOBOOK">
             <div class="hover-overlay">
               <div class="photo-info">
-                <span class="photo-cat">{cat_display}</span>
-                <h2 class="photo-title">{safe_title}</h2>
-                <span class="photo-loc">{safe_location}</span>
+                <h2 class="photo-title">{display_title}</h2>
               </div>
               <div class="zoom-indicator">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -469,9 +483,30 @@ def main():
             category = matched_mock["category"]
         else:
             title = get_clean_title(filename)
-            location = "Local Capture"
+            location = "Unknown location"
             camera, lens, exif_str = get_exif_data(fp)
             category = determine_category(filename)
+            
+        # Safe parse the captions.json entries (handles strings and objects)
+        entry = captions.get(filename, {})
+        if isinstance(entry, str):
+            entry_caption = entry
+            entry_details = ""
+            entry_tags = []
+            entry_pinned = False
+        else:
+            entry_caption = entry.get("caption", "")
+            entry_details = entry.get("details", "")
+            entry_tags = entry.get("tags", [])
+            entry_pinned = entry.get("pinned", False)
+            
+        # Determine if pinned: checkbox set or "pinned" in filename
+        is_pinned = bool(entry_pinned) or ("pinned" in filename.lower())
+        
+        # Override metadata details if we have custom tags from admin
+        if entry_tags:
+            # For compatibility with single category rendering if needed
+            category = entry_tags[0]
             
         image_list.append({
             "filename": filename,
@@ -483,9 +518,11 @@ def main():
             "lens": lens,
             "exif": exif_str,
             "category": category,
+            "tags": entry_tags,
             "mtime": mtime,
             "is_pinned": is_pinned,
-            "caption": captions.get(filename, "")
+            "caption": entry_caption,
+            "details": entry_details
         })
         
     # Sort files: pinned files go to the top, then sorted by mtime descending

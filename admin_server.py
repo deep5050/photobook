@@ -64,9 +64,29 @@ class AdminHTTPRequestHandler(SimpleHTTPRequestHandler):
             
             images_data = []
             for name in filenames:
+                entry = captions.get(name, {})
+                # Backwards compatibility
+                if isinstance(entry, str):
+                    entry = {
+                        "caption": entry,
+                        "details": "",
+                        "tags": [],
+                        "pinned": False
+                    }
+                else:
+                    entry = {
+                        "caption": entry.get("caption", ""),
+                        "details": entry.get("details", ""),
+                        "tags": entry.get("tags", []),
+                        "pinned": entry.get("pinned", False)
+                    }
+                
                 images_data.append({
                     "filename": name,
-                    "caption": captions.get(name, ""),
+                    "caption": entry["caption"],
+                    "details": entry["details"],
+                    "tags": entry["tags"],
+                    "pinned": entry["pinned"],
                     "thumbnail": f"/images/thumbnails/{name}" if os.path.exists(f"images/thumbnails/{name}") else f"/images/{name}" if os.path.exists(f"images/{name}") else f"/RAW_IMAGES/{name}"
                 })
                 
@@ -95,9 +115,22 @@ class AdminHTTPRequestHandler(SimpleHTTPRequestHandler):
                     except Exception:
                         pass
                 
-                # Update with incoming captions (accepts dictionary of filename -> caption)
-                for filename, caption in data.items():
-                    captions[filename] = caption.strip()
+                # Update with incoming captions (accepts dictionary of filename -> object/string)
+                for filename, entry in data.items():
+                    if isinstance(entry, str):
+                        captions[filename] = {
+                            "caption": entry.strip(),
+                            "details": "",
+                            "tags": [],
+                            "pinned": False
+                        }
+                    else:
+                        captions[filename] = {
+                            "caption": entry.get("caption", "").strip(),
+                            "details": entry.get("details", "").strip(),
+                            "tags": [t.strip().lower() for t in entry.get("tags", []) if t.strip()],
+                            "pinned": bool(entry.get("pinned", False))
+                        }
                 
                 # Write back to file
                 with open(CAPTIONS_FILE, 'w', encoding='utf-8') as f:
@@ -263,7 +296,7 @@ class AdminHTTPRequestHandler(SimpleHTTPRequestHandler):
     
     .admin-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
       gap: 32px;
     }
     
@@ -285,12 +318,13 @@ class AdminHTTPRequestHandler(SimpleHTTPRequestHandler):
     
     .thumbnail-wrapper {
       width: 100%;
-      height: 200px;
+      height: 220px;
       overflow: hidden;
       background-color: #121316;
       display: flex;
       align-items: center;
       justify-content: center;
+      position: relative;
     }
     
     .thumbnail-wrapper img {
@@ -303,12 +337,31 @@ class AdminHTTPRequestHandler(SimpleHTTPRequestHandler):
     .image-card:hover .thumbnail-wrapper img {
       transform: scale(1.05);
     }
+
+    .card-pinned-badge {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: var(--accent-color);
+      color: #0b0c10;
+      padding: 4px 8px;
+      font-size: 0.65rem;
+      font-weight: 700;
+      border-radius: 4px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      display: none;
+    }
+
+    .card-pinned-badge.visible {
+      display: block;
+    }
     
     .card-content {
       padding: 24px;
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 18px;
       flex-grow: 1;
     }
     
@@ -319,44 +372,78 @@ class AdminHTTPRequestHandler(SimpleHTTPRequestHandler):
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 8px;
     }
     
-    .textarea-wrapper {
+    .input-wrapper {
       display: flex;
       flex-direction: column;
       gap: 6px;
     }
     
-    .textarea-label {
+    .field-label {
       font-size: 0.65rem;
       font-weight: 700;
       letter-spacing: 0.1em;
       color: var(--text-secondary);
+      text-transform: uppercase;
     }
     
-    .caption-input {
+    .caption-input-text, .details-input {
       font-family: var(--font-family);
       font-size: 0.9rem;
       background-color: rgba(0, 0, 0, 0.3);
       border: 1px solid var(--border-color);
       color: var(--text-primary);
-      padding: 12px;
+      padding: 10px 12px;
       border-radius: 6px;
-      resize: vertical;
-      min-height: 80px;
       transition: var(--transition-smooth);
     }
+
+    .details-input {
+      resize: vertical;
+      min-height: 80px;
+    }
     
-    .caption-input:focus {
+    .caption-input-text:focus, .details-input:focus {
       outline: none;
       border-color: var(--accent-color);
       background-color: rgba(0, 0, 0, 0.5);
+    }
+
+    .tags-checkbox-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      background-color: rgba(0, 0, 0, 0.2);
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+    }
+
+    .checkbox-label {
+      font-size: 0.8rem;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .checkbox-label input[type="checkbox"] {
+      cursor: pointer;
+      accent-color: var(--accent-color);
     }
     
     .card-footer {
       display: flex;
       justify-content: space-between;
       align-items: center;
+      margin-top: 8px;
+      border-top: 1px solid var(--border-color);
+      padding-top: 14px;
     }
     
     .status-badge {
@@ -429,7 +516,7 @@ class AdminHTTPRequestHandler(SimpleHTTPRequestHandler):
 
   <main class="container">
     <h1 class="page-title">Manage Image Captions</h1>
-    <p class="page-subtitle">Add captions to your photographs. Clicking "Save All" will write changes and automatically regenerate the photobook.</p>
+    <p class="page-subtitle">Add captions, details, tags, and pinning status to your photographs. Clicking "Save All" will rebuild the photobook immediately.</p>
     
     <div id="loading">Scanning portfolio and loading captions...</div>
     <div id="admin-grid" class="admin-grid" style="display: none;"></div>
@@ -445,7 +532,7 @@ class AdminHTTPRequestHandler(SimpleHTTPRequestHandler):
       const toast = document.getElementById('toast');
       
       let initialData = {};
-      let currentCaptions = {};
+      let currentData = {};
 
       // Load images data from server API
       const loadImages = async () => {
@@ -458,66 +545,187 @@ class AdminHTTPRequestHandler(SimpleHTTPRequestHandler):
           adminGrid.innerHTML = '';
           
           data.forEach(img => {
-            initialData[img.filename] = img.caption;
-            currentCaptions[img.filename] = img.caption;
+            // Store deep copies of original fields
+            initialData[img.filename] = {
+              caption: img.caption || '',
+              details: img.details || '',
+              tags: Array.isArray(img.tags) ? [...img.tags] : [],
+              pinned: !!img.pinned
+            };
+            
+            currentData[img.filename] = {
+              caption: img.caption || '',
+              details: img.details || '',
+              tags: Array.isArray(img.tags) ? [...img.tags] : [],
+              pinned: !!img.pinned
+            };
             
             const card = document.createElement('div');
             card.className = 'image-card';
             card.id = `card-${img.filename.replace(/[^a-zA-Z0-9]/g, '_')}`;
             
-            // Thumbnail image
+            // Thumbnail image wrapper
             const thumbWrapper = document.createElement('div');
             thumbWrapper.className = 'thumbnail-wrapper';
             const imgTag = document.createElement('img');
             imgTag.src = img.thumbnail;
             imgTag.alt = img.filename;
             thumbWrapper.appendChild(imgTag);
+
+            // Card Pinned Badge
+            const pinBadge = document.createElement('span');
+            pinBadge.className = 'card-pinned-badge';
+            pinBadge.textContent = 'Pinned';
+            if (img.pinned) {
+              pinBadge.classList.add('visible');
+            }
+            thumbWrapper.appendChild(pinBadge);
             card.appendChild(thumbWrapper);
             
-            // Card body
+            // Card body content
             const content = document.createElement('div');
             content.className = 'card-content';
             
-            // Filename
+            // Filename header
             const nameEl = document.createElement('div');
             nameEl.className = 'filename';
             nameEl.textContent = img.filename;
             content.appendChild(nameEl);
             
-            // Textarea label
-            const textWrapper = document.createElement('div');
-            textWrapper.className = 'textarea-wrapper';
+            // CAPTION (Short text input)
+            const capWrapper = document.createElement('div');
+            capWrapper.className = 'input-wrapper';
+            const capLabel = document.createElement('label');
+            capLabel.className = 'field-label';
+            capLabel.textContent = 'Caption (Grid Title)';
+            const capInput = document.createElement('input');
+            capInput.type = 'text';
+            capInput.className = 'caption-input-text';
+            capInput.value = img.caption || '';
+            capInput.placeholder = 'Enter photo caption title...';
+            capWrapper.appendChild(capLabel);
+            capWrapper.appendChild(capInput);
+            content.appendChild(capWrapper);
             
-            const label = document.createElement('span');
-            label.className = 'textarea-label';
-            label.textContent = 'CAPTION';
-            textWrapper.appendChild(label);
+            // DETAILS (Textarea)
+            const detWrapper = document.createElement('div');
+            detWrapper.className = 'input-wrapper';
+            const detLabel = document.createElement('label');
+            detLabel.className = 'field-label';
+            detLabel.textContent = 'Details / Story';
+            const detInput = document.createElement('textarea');
+            detInput.className = 'details-input';
+            detInput.value = img.details || '';
+            detInput.placeholder = 'Enter a detailed story or context...';
+            detWrapper.appendChild(detLabel);
+            detWrapper.appendChild(detInput);
+            content.appendChild(detWrapper);
             
-            // Textarea
-            const textarea = document.createElement('textarea');
-            textarea.className = 'caption-input';
-            textarea.value = img.caption;
-            textarea.placeholder = 'Enter a story or context for this photo...';
+            // TAGS (Checkboxes)
+            const tagsWrapper = document.createElement('div');
+            tagsWrapper.className = 'input-wrapper';
+            const tagsLabel = document.createElement('label');
+            tagsLabel.className = 'field-label';
+            tagsLabel.textContent = 'Categories';
             
+            const tagsGrid = document.createElement('div');
+            tagsGrid.className = 'tags-checkbox-grid';
+            
+            const availableTags = ['nature', 'urban', 'minimalist', 'portrait'];
+            const checkboxElements = [];
+            
+            availableTags.forEach(tag => {
+              const label = document.createElement('label');
+              label.className = 'checkbox-label';
+              
+              const chk = document.createElement('input');
+              chk.type = 'checkbox';
+              chk.value = tag;
+              chk.checked = currentData[img.filename].tags.includes(tag);
+              checkboxElements.push(chk);
+              
+              label.appendChild(chk);
+              label.appendChild(document.createTextNode(' ' + tag.charAt(0).toUpperCase() + tag.slice(1)));
+              tagsGrid.appendChild(label);
+            });
+            
+            tagsWrapper.appendChild(tagsLabel);
+            tagsWrapper.appendChild(tagsGrid);
+            content.appendChild(tagsWrapper);
+            
+            // PINNED (Checkbox)
+            const pinWrapper = document.createElement('div');
+            pinWrapper.className = 'input-wrapper';
+            const pinLabel = document.createElement('label');
+            pinLabel.className = 'checkbox-label';
+            const pinChk = document.createElement('input');
+            pinChk.type = 'checkbox';
+            pinChk.checked = currentData[img.filename].pinned;
+            pinLabel.appendChild(pinChk);
+            pinLabel.appendChild(document.createTextNode(' Pin to top of gallery'));
+            pinWrapper.appendChild(pinLabel);
+            content.appendChild(pinWrapper);
+
+            // Save status badge
             const badge = document.createElement('span');
             badge.className = 'status-badge';
             badge.textContent = 'Saved';
             
-            textarea.addEventListener('input', (e) => {
-              currentCaptions[img.filename] = e.target.value;
-              if (currentCaptions[img.filename] !== initialData[img.filename]) {
+            // Dirty checking logic
+            const checkDiff = () => {
+              const init = initialData[img.filename];
+              const cur = currentData[img.filename];
+              
+              const tagsEqual = init.tags.length === cur.tags.length && 
+                                init.tags.every(t => cur.tags.includes(t)) &&
+                                cur.tags.every(t => init.tags.includes(t));
+                                
+              const modified = init.caption !== cur.caption ||
+                               init.details !== cur.details ||
+                               init.pinned !== cur.pinned ||
+                               !tagsEqual;
+              
+              if (modified) {
                 badge.textContent = 'Draft';
                 badge.className = 'status-badge dirty';
               } else {
                 badge.textContent = 'Saved';
                 badge.className = 'status-badge';
               }
+
+              // Toggle thumbnail pinned visual badge
+              if (cur.pinned) {
+                pinBadge.classList.add('visible');
+              } else {
+                pinBadge.classList.remove('visible');
+              }
+            };
+            
+            // Bind input changes
+            capInput.addEventListener('input', (e) => {
+              currentData[img.filename].caption = e.target.value;
+              checkDiff();
             });
             
-            textWrapper.appendChild(textarea);
-            content.appendChild(textWrapper);
+            detInput.addEventListener('input', (e) => {
+              currentData[img.filename].details = e.target.value;
+              checkDiff();
+            });
+
+            checkboxElements.forEach(chk => {
+              chk.addEventListener('change', () => {
+                const selectedTags = checkboxElements.filter(c => c.checked).map(c => c.value);
+                currentData[img.filename].tags = selectedTags;
+                checkDiff();
+              });
+            });
+
+            pinChk.addEventListener('change', (e) => {
+              currentData[img.filename].pinned = e.target.checked;
+              checkDiff();
+            });
             
-            // Card footer status
+            // Card footer
             const footer = document.createElement('div');
             footer.className = 'card-footer';
             footer.appendChild(badge);
@@ -532,7 +740,7 @@ class AdminHTTPRequestHandler(SimpleHTTPRequestHandler):
         }
       };
 
-      // Save all captions to server
+      // Save all captions/metadata to server
       const saveAll = async () => {
         saveAllBtn.disabled = true;
         saveAllBtn.textContent = 'Saving...';
@@ -541,9 +749,21 @@ class AdminHTTPRequestHandler(SimpleHTTPRequestHandler):
         const payload = {};
         let changeCount = 0;
         
-        for (const filename in currentCaptions) {
-          if (currentCaptions[filename] !== initialData[filename]) {
-            payload[filename] = currentCaptions[filename];
+        for (const filename in currentData) {
+          const init = initialData[filename];
+          const cur = currentData[filename];
+          
+          const tagsEqual = init.tags.length === cur.tags.length && 
+                            init.tags.every(t => cur.tags.includes(t)) &&
+                            cur.tags.every(t => init.tags.includes(t));
+                            
+          const modified = init.caption !== cur.caption ||
+                           init.details !== cur.details ||
+                           init.pinned !== cur.pinned ||
+                           !tagsEqual;
+                           
+          if (modified) {
+            payload[filename] = cur;
             changeCount++;
           }
         }
@@ -564,13 +784,18 @@ class AdminHTTPRequestHandler(SimpleHTTPRequestHandler):
           
           const result = await response.json();
           if (result.success) {
-            showToast('Captions saved and site successfully rebuilt!');
+            showToast('Portfolio metadata saved and site successfully rebuilt!');
             
-            // Update initial state
+            // Commit current state to initial state
             for (const filename in payload) {
-              initialData[filename] = payload[filename];
+              initialData[filename] = {
+                caption: payload[filename].caption,
+                details: payload[filename].details,
+                tags: [...payload[filename].tags],
+                pinned: payload[filename].pinned
+              };
               
-              // Reset card badges to "Saved"
+              // Reset status badges to "Saved"
               const cardId = `card-${filename.replace(/[^a-zA-Z0-9]/g, '_')}`;
               const card = document.getElementById(cardId);
               if (card) {

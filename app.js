@@ -21,6 +21,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const lightboxScrollContainer = lightbox ? lightbox.querySelector('.lightbox-scroll-container') : null;
   const lightboxScrollArrow = document.getElementById('lightbox-scroll-arrow');
   const lightboxCaption = document.getElementById('lightbox-caption');
+  const lightboxDetails = document.getElementById('lightbox-details');
+  const lightboxHistogramCanvas = document.getElementById('lightbox-histogram-canvas');
   
   // Lightbox EXIF elements
   const metaCategory = document.getElementById('meta-category');
@@ -74,12 +76,13 @@ document.addEventListener('DOMContentLoaded', () => {
     filteredItems = [];
     
     galleryItems.forEach(item => {
-      const itemCategory = item.getAttribute('data-category');
+      const itemCategoryAttr = item.getAttribute('data-category') || '';
+      const categories = itemCategoryAttr.split(',').map(c => c.trim().toLowerCase());
       
       // Reset animation classes
       item.classList.remove('fade-in-item');
       
-      if (category === 'all' || itemCategory === category) {
+      if (category === 'all' || categories.includes(category.toLowerCase())) {
         item.classList.remove('filtered-out');
         // Force reflow to restart CSS keyframe animation
         void item.offsetWidth; 
@@ -141,25 +144,38 @@ document.addEventListener('DOMContentLoaded', () => {
     lightboxImg.alt = imgEl.alt || 'Photography showcase';
     
     // Populate text details safely
-    metaCategory.textContent = currentItem.getAttribute('data-category') || '';
-    metaTitle.textContent = currentItem.getAttribute('data-title') || 'Untitled';
-    metaLocation.textContent = currentItem.getAttribute('data-location') || '';
-    metaCamera.textContent = currentItem.getAttribute('data-camera') || 'N/A';
-    metaLens.textContent = currentItem.getAttribute('data-lens') || 'N/A';
-    metaExif.textContent = currentItem.getAttribute('data-exif') || 'N/A';
+    if (metaCategory) {
+      const catAttr = currentItem.getAttribute('data-category') || '';
+      metaCategory.textContent = catAttr.split(',').map(t => t.trim()).filter(t => t).map(t => `#${t}`).join(' ');
+    }
+    if (metaTitle) {
+      metaTitle.textContent = currentItem.getAttribute('data-title') || 'Untitled';
+    }
+    if (metaLocation) {
+      metaLocation.textContent = currentItem.getAttribute('data-location') || '';
+    }
+    if (metaCamera) {
+      metaCamera.textContent = currentItem.getAttribute('data-camera') || 'N/A';
+    }
+    if (metaLens) {
+      metaLens.textContent = currentItem.getAttribute('data-lens') || 'N/A';
+    }
+    if (metaExif) {
+      metaExif.textContent = currentItem.getAttribute('data-exif') || 'N/A';
+    }
+    if (lightboxDetails) {
+      lightboxDetails.textContent = currentItem.getAttribute('data-details') || '';
+    }
     
     // Populate caption and handle scroll arrow visibility
     const caption = currentItem.getAttribute('data-caption') || '';
+    const title = currentItem.getAttribute('data-title') || 'Untitled';
     if (lightboxCaption) {
-      lightboxCaption.textContent = caption;
+      lightboxCaption.textContent = caption || title;
     }
     
     if (lightboxScrollArrow) {
-      if (caption.trim()) {
-        lightboxScrollArrow.classList.add('visible');
-      } else {
-        lightboxScrollArrow.classList.remove('visible');
-      }
+      lightboxScrollArrow.classList.add('visible');
     }
   };
 
@@ -179,6 +195,10 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
       lightboxImg.src = '';
       lightboxImg.alt = '';
+      if (lightboxHistogramCanvas) {
+        const ctx = lightboxHistogramCanvas.getContext('2d');
+        ctx.clearRect(0, 0, lightboxHistogramCanvas.width, lightboxHistogramCanvas.height);
+      }
     }, 400);
   };
 
@@ -311,6 +331,100 @@ document.addEventListener('DOMContentLoaded', () => {
     
     lazyImages.forEach(img => imageObserver.observe(img));
   };
+
+  // Compute and draw image color histogram
+  const computeHistogram = () => {
+    if (!lightboxHistogramCanvas || !lightboxImg || !lightboxImg.complete || lightboxImg.naturalWidth === 0) {
+      if (lightboxHistogramCanvas) {
+        const ctx = lightboxHistogramCanvas.getContext('2d');
+        ctx.clearRect(0, 0, lightboxHistogramCanvas.width, lightboxHistogramCanvas.height);
+      }
+      return;
+    }
+
+    try {
+      const tempCanvas = document.createElement('canvas');
+      const tempCtx = tempCanvas.getContext('2d');
+      const scanSize = 100;
+      tempCanvas.width = scanSize;
+      tempCanvas.height = scanSize;
+
+      // Draw the image onto our tiny offscreen scanner canvas
+      tempCtx.drawImage(lightboxImg, 0, 0, scanSize, scanSize);
+
+      const imgData = tempCtx.getImageData(0, 0, scanSize, scanSize);
+      const data = imgData.data;
+
+      const rHist = new Array(256).fill(0);
+      const gHist = new Array(256).fill(0);
+      const bHist = new Array(256).fill(0);
+
+      for (let i = 0; i < data.length; i += 4) {
+        rHist[data[i]]++;
+        gHist[data[i+1]]++;
+        bHist[data[i+2]]++;
+      }
+
+      const maxVal = Math.max(...rHist, ...gHist, ...bHist) || 1;
+
+      const ctx = lightboxHistogramCanvas.getContext('2d');
+      const w = lightboxHistogramCanvas.width;
+      const h = lightboxHistogramCanvas.height;
+      ctx.clearRect(0, 0, w, h);
+
+      // Use standard alpha blending which is robust and works perfectly on transparent canvas backgrounds
+      ctx.globalCompositeOperation = 'source-over';
+
+      const drawChannel = (hist, fillColor, strokeColor) => {
+        ctx.fillStyle = fillColor;
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = 1.5;
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        
+        // Draw filled region
+        ctx.beginPath();
+        ctx.moveTo(0, h);
+        for (let i = 0; i < 256; i++) {
+          const x = (i / 255) * w;
+          const y = h - (hist[i] / maxVal) * (h - 6);
+          ctx.lineTo(x, y);
+        }
+        ctx.lineTo(w, h);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Draw top stroke outline
+        ctx.beginPath();
+        for (let i = 0; i < 256; i++) {
+          const x = (i / 255) * w;
+          const y = h - (hist[i] / maxVal) * (h - 6);
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      };
+
+      const isDarkMode = body.classList.contains('dark-theme');
+      if (isDarkMode) {
+        // Vibrant overlapping translucent fills and bright strokes for dark mode
+        drawChannel(rHist, 'rgba(235, 77, 75, 0.22)', 'rgba(235, 77, 75, 0.8)');   // Red
+        drawChannel(gHist, 'rgba(46, 204, 113, 0.22)', 'rgba(46, 204, 113, 0.8)');   // Green
+        drawChannel(bHist, 'rgba(52, 152, 219, 0.22)', 'rgba(52, 152, 219, 0.8)');   // Blue
+      } else {
+        // Slightly softer fills and strokes for light mode
+        drawChannel(rHist, 'rgba(235, 77, 75, 0.18)', 'rgba(235, 77, 75, 0.7)');
+        drawChannel(gHist, 'rgba(46, 204, 113, 0.18)', 'rgba(46, 204, 113, 0.7)');
+        drawChannel(bHist, 'rgba(52, 152, 219, 0.18)', 'rgba(52, 152, 219, 0.7)');
+      }
+    } catch (err) {
+      console.warn("Histogram computation skipped (likely local file CORS restriction or image not loaded):", err);
+    }
+  };
+
+  if (lightboxImg) {
+    lightboxImg.addEventListener('load', computeHistogram);
+  }
 
   // --- Initialize App ---
   initTheme();

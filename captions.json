@@ -1,6 +1,69 @@
 {
-  "20220930_180700-01.jpeg": "durga maa",
-  "20221008_120704.jpg": "hello cdffdf",
+  "20220930_180700-01.jpeg": {
+    "caption": "DURGA",
+    "details": "One should witness the vibrant culture of Bengal at least once in a lifetime. I don't remember the exact club, as I spent the whole night pandal hopping and was completely exhausted—it was somewhere in the south, possibly Naktala. The towering idol of Maa Durga stood in majestic lighting, a captivating play of shadow and light. The theme of the pandal featured a beautiful showcase of the various kinds of cotton produced in Bengal.",
+    "tags": [
+      "urban"
+    ],
+    "pinned": false
+  },
+  "20221008_120704.jpg": {
+    "caption": "DREAMLAND",
+    "details": "A majestic view of Sonamarg, Kashmir, captured on a bright and beautiful October afternoon. It stands as one of the most memorable days of my life.",
+    "tags": [
+      "nature"
+    ],
+    "pinned": false
+  },
   "DSC00013-01.jpeg": "A beautiful premium capture showing fine art detail.",
-  "20220226_100401-01.jpeg": "fdshif asoidhfoishdfpdsfsdf\nsdfsdlifbgp IDJFASBJFDs\nfsdivh sipbafipdsbdF\nSDFSi;dvb sjbdfifjoVsd\nsdvfs bjivsdvsfd4v21sdf64sda9g84afd61vgg\nfdgasfdgsfdgerf\nggfc\nbvc\nbvzc\nbzfd\nbg\nestr\ng\nrfgsfdzvzfbgbnxgbxcv"
+  "20220226_100401-01.jpeg": {
+    "caption": "Victoria",
+    "details": "Trying a different composition, I picked up a red leaf from the garden and tried to fold it into a heart shape. Although it didn't quite hold its shape, I'm incredibly happy with the final result.",
+    "tags": [
+      "minimalist"
+    ],
+    "pinned": true
+  },
+  "20241028_132041.jpg": {
+    "caption": "DISTANT",
+    "details": "",
+    "tags": [
+      "nature"
+    ],
+    "pinned": true
+  },
+  "image_98.jpeg": {
+    "caption": "",
+    "details": "",
+    "tags": [
+      "nature"
+    ],
+    "pinned": false
+  },
+  "20221009_104133.jpg": {
+    "caption": "SELF LOVE",
+    "details": "I was enjoying a solitary walk through the Gulmarg valley with my camera when I randomly plucked this flower from the grass. In that quiet moment, I realized just how breathtaking nature is, and how truly beautiful Kashmir remains.",
+    "tags": [
+      "nature"
+    ],
+    "pinned": true
+  },
+  "20241027_112111.jpg": {
+    "caption": "NON SUNDAY",
+    "details": "I was admiring the beauty of the valley alone, with no one else around for hours as I listened to audio stories (Sunday Suspense). In that moment, I realized how often we forget to live life, limiting our joy to weekends. Having the freedom to experience this on a fine Tuesday made it all worth it.\n\nCaptured in Olangchung Gola, a remote village near the Nepal-China border—a glimpse from my trekking diary.",
+    "tags": [
+      "nature",
+      "minimalist",
+      "portrait"
+    ],
+    "pinned": false
+  },
+  "20240317_101119-01.jpeg": {
+    "caption": "NOT FAR FROM THE CITY",
+    "details": "",
+    "tags": [
+      "nature"
+    ],
+    "pinned": false
+  }
 }
